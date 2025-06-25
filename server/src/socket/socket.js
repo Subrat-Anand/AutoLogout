@@ -1,13 +1,13 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
-const User = require("../models/user.model"); // path adjust karo
+const User = require("../models/user.model");
 
 let io;
 
 const setupSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: "http://localhost:5173",
+      origin: "https://autologout-frontend.onrender.com", // apne frontend ka URL
       credentials: true,
     },
   });
@@ -29,30 +29,35 @@ const setupSocket = (server) => {
     const userId = socket.userId;
     const socketId = socket.id;
 
-    const user = await User.findById(userId);
-
-    if (user && user.socketId && user.socketId !== socketId) {
-      const sockets = await io.fetchSockets();
-      const isOldConnected = sockets.some(s => s.id === user.socketId);
-
-      if (isOldConnected) {
-        io.to(user.socketId).emit("forceLogout", "Someone logged into your ID");
-        user.token = null
-      }
-    }
-
-    // ✅ Save socket ID in DB
-    user.socketId = socketId;
-    await user.save();
-
-    socket.on("disconnect", async () => {
+    try {
       const user = await User.findById(userId);
-      if (user && user.socketId === socketId) {
-        user.socketId = null;
-        // user.token = null; // optional
+      if (!user) return;
+
+      // Delay to allow previous socket to disconnect (useful on refresh)
+      setTimeout(async () => {
+        const sockets = await io.fetchSockets();
+        const isOldConnected = sockets.some(s => s.id === user.socketId);
+
+        if (user.socketId && user.socketId !== socketId && isOldConnected) {
+          io.to(user.socketId).emit("forceLogout", "Someone logged into your ID");
+          user.token = null; // optional: clear token
+        }
+
+        user.socketId = socketId;
         await user.save();
-      }
-    });
+      }, 500); // 0.5 second delay
+
+      socket.on("disconnect", async () => {
+        const user = await User.findById(userId);
+        if (user && user.socketId === socketId) {
+          user.socketId = null;
+          await user.save();
+        }
+      });
+
+    } catch (err) {
+      console.error("Socket connection error:", err.message);
+    }
   });
 };
 
