@@ -1,24 +1,20 @@
 const jwt = require("jsonwebtoken");
-const redisClient = require("../socket/socket").redisClient; // adjust path as needed
+const User = require("../models/user.model");
 
 const isAuth = async (req, res, next) => {
   try {
     const token = req.cookies.token || req.header("Authorization")?.replace("Bearer ", "");
-
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized - Token missing" });
-    }
+    if (!token) return res.status(401).json({ message: "Unauthorized - Token missing" });
 
     const decoded = jwt.verify(token, process.env.SECRET);
-    const userId = decoded.id;
+    const user = await User.findById(decoded.id);
 
-    // ✅ Check Redis for stored token
-    const storedToken = await redisClient.get(`user:${userId}`);
-    if (storedToken !== token) {
+    // ✅ Check if token in DB matches the cookie token
+    if (!user || user.token !== token) {
       return res.status(401).json({ message: "Session expired or logged in elsewhere" });
     }
 
-    req.userId = userId;
+    req.userId = decoded.id;
     next();
   } catch (err) {
     return res.status(401).json({ message: "Unauthorized - Invalid token" });

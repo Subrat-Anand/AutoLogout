@@ -57,53 +57,41 @@ const LogIn = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // 1. Check if user exists
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    // 2. Verify password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
-    // 3. Create new JWT
     const token = jwt.sign({ id: user._id }, process.env.SECRET, { expiresIn: "1d" });
 
-    // 4. Check if user already logged in
-    const oldToken = await redisClient.get(`user:${user._id}`);
-    console.log("oldToken: ", oldToken)
-    if (oldToken) {
-      const oldSocketId = await redisClient.get(`socket:${user._id}`);
-      if (oldSocketId) {
-        console.log("oldSocketId: ", oldSocketId)
-        // ⏳ Small delay to allow new socket to connect
+    // ⛔️ Redis replaced by MongoDB
+    const oldUser = await User.findById(user._id);
+    if (oldUser && oldUser.token) {
+      if (oldUser.socketId) {
         setTimeout(() => {
-          io.to(oldSocketId).emit("forceLogout", "Someone logged into your ID");
-          console.log("⚠️ Force logout emitted to:", oldSocketId);
+          io.to(oldUser.socketId).emit("forceLogout", "Someone logged into your ID");
         }, 100);
       }
     }
 
-    // 5. Save token in Redis (with 1-day expiry)
-    await redisClient.set(`user:${user._id}`, token); // 86400 = 1 day in seconds
-
-    // 6. Set cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: false, // ✅ use true in production with HTTPS
-      sameSite: "Strict",
-    });
-
-    // 7. (Optional) Save token in DB if you track it
+    // Save token to DB
     user.token = token;
     await user.save();
 
-    // 8. Send response
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "Strict",
+    });
+
     res.status(200).json({ message: "Login Successful", user });
   } catch (error) {
     console.error("Login Error:", error.message);
     res.status(500).json({ message: "Something went wrong" });
   }
 };
+
 
 const logout = async (req, res) => {
   try {

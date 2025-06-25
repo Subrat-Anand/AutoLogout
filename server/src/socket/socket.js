@@ -1,8 +1,7 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
-const Redis = require("ioredis");
+const User = require("../models/user.model"); // path adjust karo
 
-const redisClient = new Redis(); // optionally add host/port if needed
 let io;
 
 const setupSocket = (server) => {
@@ -13,7 +12,7 @@ const setupSocket = (server) => {
     },
   });
 
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth.token;
     if (!token) return next(new Error("Token not provided"));
 
@@ -30,48 +29,28 @@ const setupSocket = (server) => {
     const userId = socket.userId;
     const socketId = socket.id;
 
-    const redisSocketKey = `socket:${userId}`;
-    const oldSocketId = await redisClient.get(redisSocketKey);
+    const user = await User.findById(userId);
 
-    console.log("🧑‍💻 UserID:", userId);
-    console.log("🆕 Current Socket ID:", socketId);
-    console.log("📦 Old Socket ID from Redis:", oldSocketId);
-
-    // 🛡 Avoid forceLogout if old socket is not active (e.g., just page refresh)
-    if (oldSocketId && oldSocketId !== socketId) {
+    if (user && user.socketId && user.socketId !== socketId) {
       const sockets = await io.fetchSockets();
-      const isOldSocketStillConnected = sockets.some(s => s.id === oldSocketId);
+      const isOldConnected = sockets.some(s => s.id === user.socketId);
 
-      if (isOldSocketStillConnected) {
-        io.to(oldSocketId).emit("forceLogout", "Someone logged into your ID");
-        console.log("⚠️ Sent forceLogout to old socket:", oldSocketId);
-
-        // Clean up old Redis data
-        await redisClient.del(`user:${userId}`);
-        await redisClient.del(`socket:${userId}`);
-        console.log(`🧹 Cleared Redis for user:${userId}`);
+      if (isOldConnected) {
+        io.to(user.socketId).emit("forceLogout", "Someone logged into your ID");
+        user.token = null
       }
     }
 
-    // ✅ Save current socket ID in Redis
-    await redisClient.set(redisSocketKey, socketId);
-    console.log(`✅ Set socket:${userId} = ${socketId}`);
+    // ✅ Save socket ID in DB
+    user.socketId = socketId;
+    await user.save();
 
-    // Optional: frontend can ping session check
-    // socket.on("checkSession", async () => {
-    //   const token = await redisClient.get(`user:${userId}`);
-    //   if (!token) {
-    //     io.to(socket.id).emit("forceLogout", "Session expired or logged in elsewhere");
-    //     console.log("🔴 checkSession → token missing → forceLogout sent");
-    //   }
-    // });
-
-    // 🔌 Handle disconnect
     socket.on("disconnect", async () => {
-      const stored = await redisClient.get(redisSocketKey);
-      if (stored === socketId) {
-        await redisClient.del(redisSocketKey);
-        console.log(`🔌 Socket disconnected & removed: socket:${userId}`);
+      const user = await User.findById(userId);
+      if (user && user.socketId === socketId) {
+        user.socketId = null;
+        // user.token = null; // optional
+        await user.save();
       }
     });
   });
@@ -82,8 +61,4 @@ const getIO = () => {
   return io;
 };
 
-module.exports = {
-  setupSocket,
-  getIO,
-  redisClient,
-};
+module.exports = { setupSocket, getIO };

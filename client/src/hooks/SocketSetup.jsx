@@ -35,7 +35,7 @@ const SocketSetup = () => {
       // 👇 Toast first
       toast.error(msg, { toastId: "forceLogout" });
 
-      // 👇 Then update state & navigate
+          // 👇 Then update state & navigate
       
       dispatch(setUser(null));
       navigate("/login");
