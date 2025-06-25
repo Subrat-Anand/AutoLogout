@@ -89,7 +89,7 @@ const LogIn = async (req, res) => {
     // 6. Set cookie
     res.cookie("token", token, {
       httpOnly: true,
-      secure: false, // ✅ use true in production with HTTPS
+      secure: true, // ✅ use true in production with HTTPS
       sameSite: "Strict",
     });
 
