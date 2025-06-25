@@ -3,7 +3,6 @@ const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const Redis = require('ioredis');
 const { getIO } = require('../socket/socket');
-const redisClient = new Redis(); // default localhost:6379
 
 const SignUp = async(req, res)=>{
     try{
@@ -74,7 +73,7 @@ const LogIn = async (req, res) => {
         }, 100);
       }
     }
-    
+
     user.token = token;
     await user.save();
 
