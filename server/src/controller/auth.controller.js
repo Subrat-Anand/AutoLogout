@@ -74,8 +74,7 @@ const LogIn = async (req, res) => {
         }, 100);
       }
     }
-
-    // Save token to DB
+    
     user.token = token;
     await user.save();
 
