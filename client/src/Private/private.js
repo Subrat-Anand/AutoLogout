@@ -1,3 +1,3 @@
-export const authUrl = "http://localhost:8000/api/auth"
-export const backend = "http://localhost:8000"
-export const GET_USER = "http://localhost:8000/api"
+export const authUrl = "https://autologout-backend.onrender.com/api/auth"
+export const backend = "https://autologout-backend.onrender.com"
+export const GET_USER = "https://autologout-backend.onrender.com/api"
