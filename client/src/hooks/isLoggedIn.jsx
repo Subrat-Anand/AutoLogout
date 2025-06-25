@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import { authUrl, GET_USER } from "../Private/private";
+import { useDispatch } from "react-redux";
+import { GET_USER } from "../Private/private";
 import axios from "axios";
 import { setUser } from "../redux/userSlice";
 
@@ -16,12 +16,12 @@ const useIsloggedIn = () => {
         dispatch(setUser(result?.data));
       } catch (err) {
         console.log("User fetch error:", err.message);
-        dispatch(setUser(null)); // 👈 important
+        dispatch(setUser(null));
       }
     };
 
     fetchUser();
-  }, [dispatch]);
+  }, [dispatch]); // ✅ no userData dependency
 };
 
 export default useIsloggedIn;
